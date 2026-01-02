@@ -5,7 +5,7 @@ struct FauxmemoApp: App {
     @State private var viewModel = FauxmemoViewModel()
 
     var body: some Scene {
-        WindowGroup {
+        Window("Fauxmemo", id: "main") {
             ContentView(viewModel: viewModel)
         }
         .windowResizability(.contentSize)
