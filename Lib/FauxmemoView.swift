@@ -1,61 +1,38 @@
 import SwiftUI
-import CoreGraphics
-import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Image Well
 
-struct ImageWell: NSViewRepresentable {
+struct ImageWell: View {
     var image: CGImage?
     var onImageDropped: (NSImage) -> Void
 
-    func makeNSView(context: Context) -> ObservableImageView {
-        let imageView = ObservableImageView()
-        imageView.isEditable = true
-        imageView.allowsCutCopyPaste = true
-        imageView.refusesFirstResponder = true
-        imageView.focusRingType = .none
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.imageFrameStyle = .none
-        imageView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        imageView.setContentHuggingPriority(.defaultLow, for: .vertical)
-        imageView.onImageChanged = onImageDropped
-        return imageView
-    }
-
-    func updateNSView(_ nsView: ObservableImageView, context: Context) {
-        if let cgImage = image {
-            nsView.image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-        } else {
-            nsView.image = nil
+    var body: some View {
+        Group {
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color.clear
+            }
         }
-    }
-}
-
-class ObservableImageView: NSImageView {
-    var onImageChanged: ((NSImage) -> Void)?
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.borderWidth = 0
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
-
-    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        let result = super.performDragOperation(sender)
-        if result, let image = self.image {
-            onImageChanged?(image)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .onDrop(of: [.image], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadDataRepresentation(for: .image) { data, _ in
+                guard let data, let nsImage = NSImage(data: data) else { return }
+                DispatchQueue.main.async { onImageDropped(nsImage) }
+            }
+            return true
         }
-        return result
-    }
-
-    @objc func paste(_ sender: Any?) {
-        let pasteboard = NSPasteboard.general
-        guard let image = NSImage(pasteboard: pasteboard) else { return }
-        self.image = image
-        onImageChanged?(image)
+        .onPasteCommand(of: [.image]) { providers in
+            guard let provider = providers.first else { return }
+            _ = provider.loadDataRepresentation(for: .image) { data, _ in
+                guard let data, let nsImage = NSImage(data: data) else { return }
+                DispatchQueue.main.async { onImageDropped(nsImage) }
+            }
+        }
     }
 }
