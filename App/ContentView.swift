@@ -15,19 +15,21 @@ struct ContentView: View {
                     .padding()
             }
             .onChange(of: viewModel.previewImage) { _, newImage in
-            guard let window = NSApp.keyWindow else { return }
+                DispatchQueue.main.async {
+                    guard let window = NSApp.keyWindow else { return }
 
-            if let image = newImage {
-                let aspectRatio = CGFloat(image.width) / CGFloat(image.height)
-                let currentHeight = window.contentView?.bounds.height ?? 400
-                let newWidth = currentHeight * aspectRatio
+                    if let image = newImage {
+                        let aspectRatio = CGFloat(image.width) / CGFloat(image.height)
+                        let currentHeight = window.contentView?.bounds.height ?? 400
+                        let newWidth = currentHeight * aspectRatio
 
-                window.setContentSize(NSSize(width: newWidth, height: currentHeight))
-                window.contentAspectRatio = NSSize(width: aspectRatio, height: 1)
-            } else {
-                window.contentAspectRatio = NSSize.zero
+                        window.setContentSize(NSSize(width: newWidth, height: currentHeight))
+                        window.contentAspectRatio = NSSize(width: aspectRatio, height: 1)
+                    } else {
+                        window.contentAspectRatio = NSSize.zero
+                    }
+                }
             }
-        }
     }
 
     @ViewBuilder
