@@ -14,11 +14,7 @@
 		DE5329982F00A38900E97BA2 /* FauxmemoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE53298A2F00A38900E97BA2 /* FauxmemoManager.swift */; };
 		DE53299A2F00A38900E97BA2 /* FauxmemoImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5329892F00A38900E97BA2 /* FauxmemoImage.swift */; };
 		DE53299B2F00A39500E97BA2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE53298F2F00A38900E97BA2 /* ShareViewController.swift */; };
-		DE53299C2F00A39B00E97BA2 /* FauxmemoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5329872F00A38900E97BA2 /* FauxmemoViewModel.swift */; };
-		DE53299D2F00A39F00E97BA2 /* FauxmemoImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5329892F00A38900E97BA2 /* FauxmemoImage.swift */; };
-		DE53299E2F00A3A200E97BA2 /* FauxmemoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE53298A2F00A38900E97BA2 /* FauxmemoManager.swift */; };
 		DE5329A02F00A3B000E97BA2 /* FauxmemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE53299F2F00A3B000E97BA2 /* FauxmemoView.swift */; };
-		DE5329A12F00A3B000E97BA2 /* FauxmemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE53299F2F00A3B000E97BA2 /* FauxmemoView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,7 +78,6 @@
 			isa = PBXGroup;
 			children = (
 				DE5329882F00A38900E97BA2 /* App */,
-				DE53298B2F00A38900E97BA2 /* Lib */,
 				DE5329932F00A38900E97BA2 /* Share */,
 				549035762E90B74100F904F8 /* Products */,
 			);
@@ -102,19 +97,12 @@
 			children = (
 				DE5329852F00A38900E97BA2 /* ContentView.swift */,
 				DE5329862F00A38900E97BA2 /* FauxmemoApp.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		DE53298B2F00A38900E97BA2 /* Lib */ = {
-			isa = PBXGroup;
-			children = (
 				DE5329892F00A38900E97BA2 /* FauxmemoImage.swift */,
 				DE53298A2F00A38900E97BA2 /* FauxmemoManager.swift */,
 				DE5329872F00A38900E97BA2 /* FauxmemoViewModel.swift */,
 				DE53299F2F00A3B000E97BA2 /* FauxmemoView.swift */,
 			);
-			path = Lib;
+			path = App;
 			sourceTree = "<group>";
 		};
 		DE5329932F00A38900E97BA2 /* Share */ = {
@@ -236,11 +224,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DE53299E2F00A3A200E97BA2 /* FauxmemoManager.swift in Sources */,
-				DE53299D2F00A39F00E97BA2 /* FauxmemoImage.swift in Sources */,
-				DE53299C2F00A39B00E97BA2 /* FauxmemoViewModel.swift in Sources */,
 				DE53299B2F00A39500E97BA2 /* ShareViewController.swift in Sources */,
-				DE5329A12F00A3B000E97BA2 /* FauxmemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -390,6 +374,7 @@
 				DEVELOPMENT_TEAM = H873NLKBJ4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fauxmemo needs Bluetooth to connect to your thermal printer.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -419,6 +404,7 @@
 				DEVELOPMENT_TEAM = H873NLKBJ4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fauxmemo needs Bluetooth to connect to your thermal printer.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
