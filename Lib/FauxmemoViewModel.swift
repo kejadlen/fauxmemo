@@ -12,8 +12,8 @@ final class FauxmemoViewModel: FauxmemoManagerDelegate {
     private(set) var printCompleted: Bool = false
 
     var canPrint: Bool {
-        if case .ready = state, previewImage != nil { return true }
-        return false
+        guard case .ready = state, previewImage != nil else { return false }
+        return true
     }
 
     var isConnecting: Bool {
@@ -22,6 +22,35 @@ final class FauxmemoViewModel: FauxmemoManagerDelegate {
             return true
         case .ready, .printing, .notReady, .error:
             return false
+        }
+    }
+
+    var showProgress: Bool {
+        switch state {
+        case .disconnected, .scanning, .connecting, .printing:
+            return true
+        case .ready, .notReady, .error:
+            return false
+        }
+    }
+
+    var buttonLabel: String {
+        switch state {
+        case .disconnected, .scanning:
+            return "Scanning…"
+        case .connecting:
+            return "Connecting…"
+        case .ready:
+            return "Print"
+        case .printing:
+            return "Printing…"
+        case .notReady(let reason):
+            if reason.contains(.noPaper) { return "No Paper" }
+            if reason.contains(.coverOpen) { return "Cover Open" }
+            if reason.contains(.overheated) { return "Overheated" }
+            return "Not Ready"
+        case .error(let message):
+            return message
         }
     }
 

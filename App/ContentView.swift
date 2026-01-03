@@ -9,7 +9,10 @@ struct ContentView: View {
         ImageWell(image: viewModel.previewImage, onImageDropped: viewModel.loadImage)
             .frame(minWidth: 300, minHeight: 300)
             .overlay { dropHint }
-            .overlay(alignment: .topTrailing) { clearButton }
+            .overlay(alignment: .topTrailing) {
+                clearButton
+                    .ignoresSafeArea()
+            }
             .overlay(alignment: .bottom) {
                 actionButton
                     .padding()
@@ -40,15 +43,19 @@ struct ContentView: View {
                 .tint(.accentColor)
                 .controlSize(.extraLarge)
                 .frame(maxWidth: .infinity)
-        } else if viewModel.isConnecting {
-            ProgressView()
-                .controlSize(.regular)
-                .frame(maxWidth: .infinity)
         } else {
             Button(action: viewModel.printImage) {
-                Label("Print", systemImage: "printer.fill")
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
+                HStack {
+                    if viewModel.showProgress {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "printer.fill")
+                    }
+                    Text(viewModel.buttonLabel)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.glass)
             .tint(.accentColor)
