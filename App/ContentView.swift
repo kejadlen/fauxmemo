@@ -39,8 +39,7 @@ struct ContentView: View {
     private var actionButton: some View {
         if viewModel.previewImage == nil {
             Button("Open Image...", action: openFilePicker)
-                .buttonStyle(.glass)
-                .tint(.accentColor)
+                .buttonStyle(.borderedProminent)
                 .controlSize(.extraLarge)
                 .frame(maxWidth: .infinity)
         } else {
@@ -54,11 +53,9 @@ struct ContentView: View {
                     }
                     Text(viewModel.buttonLabel)
                 }
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glass)
-            .tint(.accentColor)
+            .buttonStyle(.borderedProminent)
             .controlSize(.extraLarge)
             .disabled(!viewModel.canPrint)
         }
