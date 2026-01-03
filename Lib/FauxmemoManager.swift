@@ -1,6 +1,9 @@
 import CoreBluetooth
 import CoreGraphics
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "dev.kejadlen.Fauxmemo", category: "BLE")
 
 struct NotReadyReason: OptionSet {
     let rawValue: Int
@@ -46,7 +49,10 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     private var connected = false
 
     private(set) var state: PrinterState = .disconnected {
-        didSet { delegate?.manager(self, didChangeState: state) }
+        didSet {
+            logger.info("State: \(String(describing: self.state))")
+            delegate?.manager(self, didChangeState: state)
+        }
     }
 
     init(delegate: FauxmemoManagerDelegate) {
@@ -66,10 +72,14 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
     fileprivate func printImage(_ image: FauxmemoImage) {
         guard let peripheral = targetPeripheral,
-              let characteristic = writeChar else { return }
+              let characteristic = writeChar else {
+            logger.error("Cannot print: peripheral or characteristic missing")
+            return
+        }
 
         state = .printing
         let imageData = Self.data(from: image.dithered)
+        logger.info("Printing \(imageData.count) bytes")
         peripheral.writeValue(imageData, for: characteristic, type: .withoutResponse)
     }
 
@@ -147,6 +157,7 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     // MARK: - CBCentralManagerDelegate
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        logger.debug("Central state: \(String(describing: central.state.rawValue))")
         switch central.state {
         case .poweredOn:
             state = .scanning
@@ -166,6 +177,7 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
                         didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any],
                         rssi RSSI: NSNumber) {
+        logger.info("Discovered: \(peripheral.name ?? "unknown") RSSI: \(RSSI)")
         self.targetPeripheral = peripheral
         self.central.stopScan()
         self.central.connect(peripheral, options: nil)
@@ -242,6 +254,7 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard error == nil, let data = characteristic.value else { return }
         let bytes = [UInt8](data)
+        logger.debug("Received: \(bytes.map { String(format: "%02x", $0) }.joined(separator: " "))")
 
         guard bytes.count > 2 else { return }
 
