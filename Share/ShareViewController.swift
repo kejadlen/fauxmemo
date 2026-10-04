@@ -37,17 +37,9 @@ final class ShareViewController: UIViewController {
         else { return nil }
 
         return await withCheckedContinuation { continuation in
-            provider.loadItem(forTypeIdentifier: UTType.image.identifier) { item, _ in
-                switch item {
-                case let url as URL:
-                    continuation.resume(returning: UIImage.downsampled(from: url))
-                case let data as Data:
-                    continuation.resume(returning: UIImage.downsampled(from: data))
-                case let image as UIImage:
-                    continuation.resume(returning: image)
-                default:
-                    continuation.resume(returning: nil)
-                }
+            // The URL is deleted when the handler returns, so downsample inside it.
+            _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
+                continuation.resume(returning: url.flatMap { UIImage.downsampled(from: $0) })
             }
         }
     }
