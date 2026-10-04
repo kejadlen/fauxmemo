@@ -97,3 +97,47 @@ final class IconSheetLayoutTests: XCTestCase {
         XCTAssertEqual(IconSheetLayout(count: 0, perRow: 3).height, 0)
     }
 }
+
+final class BitmapDrawTests: XCTestCase {
+    private func solid(width: Int, height: Int) -> Bitmap {
+        var bitmap = Bitmap(width: width, height: height)
+        for y in 0..<height { for x in 0..<width { bitmap[x, y] = true } }
+        return bitmap
+    }
+
+    private func blackPoints(_ bitmap: Bitmap) -> Set<[Int]> {
+        var points = Set<[Int]>()
+        for y in 0..<bitmap.height { for x in 0..<bitmap.width where bitmap[x, y] { points.insert([x, y]) } }
+        return points
+    }
+
+    func testDrawsAtOffset() {
+        var canvas = Bitmap(width: 4, height: 4)
+        canvas.draw(solid(width: 2, height: 1), x: 1, y: 2)
+        XCTAssertEqual(blackPoints(canvas), [[1, 2], [2, 2]])
+    }
+
+    func testWhiteDoesNotErase() {
+        var canvas = solid(width: 2, height: 2)
+        canvas.draw(Bitmap(width: 2, height: 2), x: 0, y: 0)
+        XCTAssertFalse(canvas.dots.contains(false))
+    }
+
+    func testClipsPastTheEdges() {
+        var canvas = Bitmap(width: 3, height: 3)
+        canvas.draw(solid(width: 2, height: 2), x: 2, y: 2)
+        XCTAssertEqual(blackPoints(canvas), [[2, 2]])
+    }
+
+    func testClipsNegativeOffsets() {
+        var canvas = Bitmap(width: 3, height: 3)
+        canvas.draw(solid(width: 2, height: 2), x: -1, y: -1)
+        XCTAssertEqual(blackPoints(canvas), [[0, 0]])
+    }
+
+    func testIgnoresBitmapsEntirelyOutside() {
+        var canvas = Bitmap(width: 3, height: 3)
+        canvas.draw(solid(width: 2, height: 2), x: 5, y: -5)
+        XCTAssertFalse(canvas.dots.contains(true))
+    }
+}

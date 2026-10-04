@@ -33,6 +33,18 @@ public struct Bitmap: Equatable, Sendable {
         set { dots[y * width + x] = newValue }
     }
 
+    /// Copies `other`'s black dots in with its top-left corner at (x, y), clipping at the edges.
+    public mutating func draw(_ other: Bitmap, x: Int, y: Int) {
+        let top = max(0, -y), bottom = min(other.height, height - y)
+        let left = max(0, -x), right = min(other.width, width - x)
+        guard top < bottom, left < right else { return }
+        for oy in top..<bottom {
+            for ox in left..<right where other[ox, oy] {
+                self[x + ox, y + oy] = true
+            }
+        }
+    }
+
     /// Grayscale bytes (0 or 255) for drawing a preview.
     public var grayPixels: [UInt8] {
         dots.map { $0 ? 0 : 255 }
