@@ -1,32 +1,31 @@
 # Fauxmemo
 
-Print images to a Phomemo T02 thermal printer from macOS.
+Print photos and Phosphor icon sheets to a Phomemo T02 from iOS.
 
 Fork of [jeffrafter/phomemo](https://github.com/jeffrafter/phomemo), which builds on [vivier/phomemo-tools](https://github.com/vivier/phomemo-tools).
 
-## Features
+## Building
 
-- Drag, drop, or paste images
-- Floyd-Steinberg dithering
-- Liquid glass UI (macOS 26)
+The Xcode project is generated from `project.yml`:
 
-## Requirements
+```sh
+brew install xcodegen
+xcodegen
+open Fauxmemo.xcodeproj
+```
 
-- macOS 26.0+
-- Phomemo T02 paired via Bluetooth
+Image processing and the printer protocol live in `FauxmemoKit`, a plain Swift package with tests:
 
-## Setup
+```sh
+cd FauxmemoKit && swift test
+```
 
-1. Pair your T02 in System Settings → Bluetooth
-2. Launch Fauxmemo
-3. Drop an image or click "Open Image..."
-4. Click Print
+## Layout
 
-### Why pair first?
-
-The T02 sends status notifications (paper out, cover open, print complete) over an encrypted BLE channel. Without pairing, the app can send images but receives no feedback—you won't know if the printer ran out of paper mid-print.
-
-Pair once in System Settings to establish the encrypted channel. After that, Fauxmemo connects automatically.
+- `App/`: the app (home, photo print, icon sheet)
+- `Share/`: share extension for printing a photo from any app
+- `Shared/`: printer connection, imaging glue and views used by both
+- `FauxmemoKit/`: dithering, the T02 byte format and icon sheet layout
 
 ## Troubleshooting
 
@@ -34,4 +33,8 @@ Pair once in System Settings to establish the encrypted channel. After that, Fau
 
 **Already connected elsewhere:** The printer connects to one device at a time. Close other apps.
 
-**USB not working:** The USB port charges only; use Bluetooth to print.
+**USB not working:** The USB port only charges. Print over Bluetooth.
+
+## How printing works
+
+Everything ends up as a `Bitmap` 384 dots wide, which `PhomemoPrinter` encodes and sends. A new kind of print, such as text, only needs to produce a bitmap.

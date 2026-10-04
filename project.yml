@@ -1,0 +1,69 @@
+name: Fauxmemo
+
+options:
+  bundleIdPrefix: com.fauxmemo
+  deploymentTarget:
+    iOS: "18.0"
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: H873NLKBJ4
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  FauxmemoKit:
+    path: FauxmemoKit
+  PhosphorSwift:
+    url: https://github.com/phosphor-icons/swift
+    from: 2.1.0
+
+targets:
+  Fauxmemo:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Shared
+    dependencies:
+      - package: FauxmemoKit
+      - package: PhosphorSwift
+      - target: FauxmemoShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fauxmemo.Fauxmemo
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Fauxmemo
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSBluetoothAlwaysUsageDescription: Fauxmemo prints to your Phomemo over Bluetooth.
+
+  FauxmemoShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Share
+      - Shared
+    dependencies:
+      - package: FauxmemoKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fauxmemo.Fauxmemo.FauxmemoShare
+    info:
+      path: Share/Info.plist
+      properties:
+        CFBundleDisplayName: Fauxmemo
+        NSBluetoothAlwaysUsageDescription: Fauxmemo prints to your Phomemo over Bluetooth.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 1
+

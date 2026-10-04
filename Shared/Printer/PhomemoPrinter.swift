@@ -1,11 +1,12 @@
 import CoreBluetooth
-import CoreGraphics
+import FauxmemoKit
 import Foundation
+import Observation
 import os
 
-private let logger = Logger(subsystem: "dev.kejadlen.Fauxmemo", category: "BLE")
+private let logger = Logger(subsystem: "com.fauxmemo.Fauxmemo", category: "BLE")
 
-struct NotReadyReason: OptionSet {
+struct NotReadyReason: OptionSet, Equatable {
     let rawValue: Int
     static let noPaper    = NotReadyReason(rawValue: 1 << 0)
     static let coverOpen  = NotReadyReason(rawValue: 1 << 1)
@@ -23,135 +24,88 @@ enum PrinterState {
 }
 
 struct ReadyPrinter {
-    private let manager: FauxmemoManager
+    private let printer: PhomemoPrinter
 
-    fileprivate init(manager: FauxmemoManager) {
-        self.manager = manager
+    fileprivate init(printer: PhomemoPrinter) {
+        self.printer = printer
     }
 
-    func print(_ image: FauxmemoImage) {
-        manager.printImage(image)
+    func print(_ bitmap: Bitmap) {
+        printer.printBitmap(bitmap)
     }
 }
 
-protocol FauxmemoManagerDelegate: AnyObject {
-    func manager(_ manager: FauxmemoManager, didChangeState state: PrinterState)
-}
+@Observable
+final class PhomemoPrinter: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    private(set) var state: PrinterState = .disconnected
 
-final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    private weak var delegate: FauxmemoManagerDelegate?
-    private var central: CBCentralManager!
-    private var targetPeripheral: CBPeripheral?
-    private var writeChar: CBCharacteristic?
+    @ObservationIgnored private var central: CBCentralManager!
+    @ObservationIgnored private var targetPeripheral: CBPeripheral?
+    @ObservationIgnored private var writeChar: CBCharacteristic?
     private let targetServiceUUID = CBUUID(string: "00001812-0000-1000-8000-00805F9B34FB")
 
-    private var statusFlags: NotReadyReason = []
-    private var connected = false
+    @ObservationIgnored private var statusFlags: NotReadyReason = []
+    @ObservationIgnored private var connected = false
+    @ObservationIgnored private var pollTask: Task<Void, Never>?
 
-    private(set) var state: PrinterState = .disconnected {
-        didSet {
-            logger.info("State: \(String(describing: self.state))")
-            delegate?.manager(self, didChangeState: state)
-        }
+    /// Encoded print job bytes not yet handed to CoreBluetooth.
+    @ObservationIgnored private var pending = Data()
+
+    override init() {
+        super.init()
+        self.central = CBCentralManager(delegate: self, queue: .main)
     }
 
-    init(delegate: FauxmemoManagerDelegate) {
-        super.init()
-        self.delegate = delegate
-        self.central = CBCentralManager(delegate: self, queue: .main)
+    /// Starts looking for the printer again after a disconnect or error.
+    func reconnect() {
+        guard central.state == .poweredOn, !connected else { return }
+        if let peripheral = targetPeripheral {
+            central.cancelPeripheralConnection(peripheral)
+        }
+        startScan()
+    }
+
+    private func transition(to newState: PrinterState) {
+        logger.info("State: \(String(describing: newState))")
+        state = newState
+    }
+
+    private func startScan() {
+        transition(to: .scanning)
+        central.scanForPeripherals(withServices: [targetServiceUUID], options: nil)
     }
 
     private func updateReadyState() {
         guard connected else { return }
         if statusFlags.isEmpty {
-            state = .ready(ReadyPrinter(manager: self))
+            transition(to: .ready(ReadyPrinter(printer: self)))
         } else {
-            state = .notReady(statusFlags)
+            transition(to: .notReady(statusFlags))
         }
     }
 
-    fileprivate func printImage(_ image: FauxmemoImage) {
-        guard let peripheral = targetPeripheral,
-              let characteristic = writeChar else {
+    fileprivate func printBitmap(_ bitmap: Bitmap) {
+        guard targetPeripheral != nil, writeChar != nil else {
             logger.error("Cannot print: peripheral or characteristic missing")
             return
         }
 
-        state = .printing
-        let imageData = Self.data(from: image.dithered)
-        logger.info("Printing \(imageData.count) bytes")
-        peripheral.writeValue(imageData, for: characteristic, type: .withoutResponse)
+        transition(to: .printing)
+        pending = PhomemoEncoder.encode(bitmap)
+        logger.info("Printing \(self.pending.count) bytes")
+        sendPending()
     }
 
-    private static func data(from image: CGImage) -> Data {
-        let width = image.width
-        let height = image.height
-
-        guard let buf = image.dataProvider?.data,
-              let pixels = CFDataGetBytePtr(buf) else { return Data() }
-
-        var remaining = height
-        var y = 0
-
-        var data = Data()
-        data.append(header())
-
-        while remaining > 0 {
-            var lines = remaining
-            if lines > 256 { lines = 256 }
-            data.append(marker(lines: UInt8(lines - 1)))
-            remaining -= lines
-            while lines > 0 {
-                data.append(line(pixels: pixels, width: width, row: y))
-                lines -= 1
-                y += 1
-            }
+    /// Writes as much of the job as the link will take; the rest goes out from
+    /// `peripheralIsReady(toSendWriteWithoutResponse:)`.
+    private func sendPending() {
+        guard let peripheral = targetPeripheral, let characteristic = writeChar else { return }
+        let chunkSize = peripheral.maximumWriteValueLength(for: .withoutResponse)
+        while !pending.isEmpty, peripheral.canSendWriteWithoutResponse {
+            let chunk = Data(pending.prefix(chunkSize))
+            peripheral.writeValue(chunk, for: characteristic, type: .withoutResponse)
+            pending.removeFirst(chunk.count)
         }
-        data.append(footer())
-
-        return data
-    }
-
-    private static func header() -> Data {
-        Data([0x1b, 0x40, 0x1b, 0x61, 0x01, 0x1f, 0x11, 0x02, 0x04])
-    }
-
-    private static func marker(lines: UInt8) -> Data {
-        Data([
-            0x1d, 0x76,
-            0x30, 0x00,
-            0x30, 0x00,
-            lines, 0x00
-        ])
-    }
-
-    private static func line(pixels: UnsafePointer<UInt8>, width: Int, row: Int) -> Data {
-        var data = Data()
-        for x in 0..<(width) / 8 {
-            var byte: UInt8 = 0
-            for bit in 0..<8 {
-                let pixelX = x * 8 + bit
-                if pixels[row * width + pixelX] == 0 {
-                    byte |= 1 << (7 - bit)
-                }
-            }
-            if byte == 0x0a {
-                byte = 0x14
-            }
-            data.append(byte)
-        }
-        return data
-    }
-
-    private static func footer() -> Data {
-        Data([
-            0x1b, 0x64, 0x02,
-            0x1b, 0x64, 0x02,
-            0x1f, 0x11, 0x08,
-            0x1f, 0x11, 0x0e,
-            0x1f, 0x11, 0x07,
-            0x1f, 0x11, 0x09
-        ])
     }
 
     // MARK: - CBCentralManagerDelegate
@@ -160,14 +114,13 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         logger.debug("Central state: \(String(describing: central.state.rawValue))")
         switch central.state {
         case .poweredOn:
-            state = .scanning
-            central.scanForPeripherals(withServices: [targetServiceUUID], options: nil)
+            startScan()
         case .poweredOff:
-            state = .error("Bluetooth is powered off")
+            transition(to: .error("Bluetooth is off"))
         case .unauthorized:
-            state = .error("Bluetooth unauthorized")
+            transition(to: .error("Bluetooth access is off for Fauxmemo"))
         case .unsupported:
-            state = .error("Bluetooth unsupported")
+            transition(to: .error("Bluetooth unsupported"))
         default:
             break
         }
@@ -184,31 +137,33 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        state = .connecting
+        transition(to: .connecting)
         peripheral.delegate = self
         peripheral.discoverServices(nil)
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        state = .error("Failed to connect: \(error?.localizedDescription ?? "unknown")")
+        transition(to: .error("Failed to connect: \(error?.localizedDescription ?? "unknown")"))
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         connected = false
-        state = .disconnected
+        pending = Data()
+        pollTask?.cancel()
+        transition(to: .disconnected)
         // Try to reconnect
-        central.scanForPeripherals(withServices: [targetServiceUUID], options: nil)
+        startScan()
     }
 
     // MARK: - CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard error == nil else {
-            state = .error("Service discovery failed: \(error!.localizedDescription)")
+        if let error {
+            transition(to: .error("Service discovery failed: \(error.localizedDescription)"))
             return
         }
-        guard let services = peripheral.services, let service = services.first else {
-            state = .error("No services found")
+        guard let service = peripheral.services?.first else {
+            transition(to: .error("No services found"))
             return
         }
         peripheral.discoverCharacteristics(nil, for: service)
@@ -217,12 +172,12 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
-        guard error == nil else {
-            state = .error("Characteristic discovery failed: \(error!.localizedDescription)")
+        if let error {
+            transition(to: .error("Characteristic discovery failed: \(error.localizedDescription)"))
             return
         }
-        guard let chars = service.characteristics else {
-            state = .error("No characteristics found")
+        guard let chars = service.characteristics, chars.count > 1 else {
+            transition(to: .error("No characteristics found"))
             return
         }
 
@@ -231,24 +186,25 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         }
 
         // FF02 is the write characteristic
-        if chars.count > 1 {
-            self.writeChar = chars[1]
-        }
+        let writeChar = chars[1]
+        self.writeChar = writeChar
 
-        Task {
-            await pollUntilReady(peripheral: peripheral, characteristic: chars[1])
+        pollTask?.cancel()
+        pollTask = Task { @MainActor [weak self] in
+            await self?.pollUntilReady(peripheral: peripheral, characteristic: writeChar)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateNotificationStateFor characteristic: CBCharacteristic,
                     error: Error?) {
-        if let error = error {
-            if error.localizedDescription.contains("Encryption is insufficient") {
-                state = .error("Pair the printer in Bluetooth settings first")
-            }
-            return
+        if let error, error.localizedDescription.contains("Encryption is insufficient") {
+            transition(to: .error("Pair the printer in Bluetooth settings first"))
         }
+    }
+
+    func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        sendPending()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -297,8 +253,9 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         }
     }
 
+    @MainActor
     private func pollUntilReady(peripheral: CBPeripheral, characteristic: CBCharacteristic) async {
-        while !connected {
+        while !connected, !Task.isCancelled {
             // Query serial number: "SSSGETSN\r\n"
             let sn = Data([0x53, 0x53, 0x53, 0x47, 0x45, 0x54, 0x53, 0x4e, 0x0d, 0x0a])
             peripheral.writeValue(sn, for: characteristic, type: .withResponse)
@@ -319,7 +276,29 @@ final class FauxmemoManager: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             let askCover = Data([0x1f, 0x11, 0x12])
             peripheral.writeValue(askCover, for: characteristic, type: .withoutResponse)
 
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+    }
+}
+
+extension PrinterState {
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
+
+    var summary: String {
+        switch self {
+        case .disconnected: "Disconnected"
+        case .scanning: "Looking for printer"
+        case .connecting: "Connecting"
+        case .ready: "Ready"
+        case .printing: "Printing"
+        case .notReady(let reason):
+            if reason.contains(.noPaper) { "Out of paper" }
+            else if reason.contains(.coverOpen) { "Cover open" }
+            else { "Too hot" }
+        case .error(let message): message
         }
     }
 }

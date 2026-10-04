@@ -2,22 +2,14 @@ import SwiftUI
 
 @main
 struct FauxmemoApp: App {
-    @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
+    @State private var printer = PhomemoPrinter()
 
     var body: some Scene {
-        Window("Fauxmemo", id: "main") {
-            ContentView(viewModel: appDelegate.viewModel)
+        WindowGroup {
+            HomeView()
+                .environment(printer)
+                .preferredColorScheme(.light)
+                .tint(Palette.accent)
         }
-        .windowResizability(.contentSize)
-        .windowStyle(.hiddenTitleBar)
-    }
-}
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    let viewModel = FauxmemoViewModel()
-
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first else { return }
-        viewModel.loadImage(from: url)
     }
 }
