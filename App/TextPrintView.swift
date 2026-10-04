@@ -29,24 +29,28 @@ struct TextPrintView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            TextEditor(text: $text)
-                .focused($editing)
-                .scrollContentBackground(.hidden)
-                .padding(10)
-                .frame(height: 140)
-                .background(Palette.surface, in: .rect(cornerRadius: 16))
-                .overlay(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text("Type something to print")
-                            .foregroundStyle(Palette.muted)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 18)
-                            .allowsHitTesting(false)
+            HStack(spacing: 12) {
+                iconTile
+
+                TextEditor(text: $text)
+                    .focused($editing)
+                    .scrollContentBackground(.hidden)
+                    .padding(10)
+                    .frame(height: 140)
+                    .background(Palette.surface, in: .rect(cornerRadius: 16))
+                    .overlay(alignment: .topLeading) {
+                        if text.isEmpty {
+                            Text("Label")
+                                .foregroundStyle(Palette.muted)
+                                .padding(.horizontal, 15)
+                                .padding(.vertical, 18)
+                                .allowsHitTesting(false)
+                        }
                     }
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.line)
-                }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.line)
+                    }
+            }
 
             Group {
                 if bitmap != nil {
@@ -80,13 +84,9 @@ struct TextPrintView: View {
                     .accessibilityLabel("Bold")
                 }
 
-                HStack(spacing: 12) {
-                    iconControls
-                    if icon?.isEmoji == true {
-                        DitherPicker(selection: $dither)
-                    }
+                if icon?.isEmoji == true {
+                    DitherPicker(selection: $dither)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
 
                 PrintButton(bitmap: bitmap)
             }
@@ -113,27 +113,40 @@ struct TextPrintView: View {
         }
     }
 
-    @ViewBuilder
-    private var iconControls: some View {
+    private var iconTile: some View {
         Button {
             pickingIcon = true
         } label: {
-            switch icon {
-            case .glyph(let glyph):
-                glyph.weight(glyphWeight).frame(width: 20, height: 20)
-            case .emoji(let emoji):
-                Text(emoji)
-            case nil:
-                Label("Icon", systemImage: "plus")
+            Group {
+                switch icon {
+                case .glyph(let glyph):
+                    glyph.weight(glyphWeight).frame(width: 32, height: 32)
+                case .emoji(let emoji):
+                    Text(emoji).font(.system(size: 32))
+                case nil:
+                    Image(systemName: "plus").foregroundStyle(Palette.muted)
+                }
+            }
+            .frame(width: 64, height: 64)
+            .foregroundStyle(Palette.ink)
+            .background(Palette.surface, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Palette.line, style: StrokeStyle(lineWidth: 1, dash: icon == nil ? [4, 4] : []))
             }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
         .accessibilityLabel(icon.map { "Icon: \($0.name)" } ?? "Add icon")
-
-        if icon != nil {
-            Button("Remove icon", systemImage: "xmark") { icon = nil }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.bordered)
+        .overlay(alignment: .topTrailing) {
+            if icon != nil {
+                Button("Remove icon", systemImage: "xmark") { icon = nil }
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 20, height: 20)
+                    .background(Palette.ink, in: .circle)
+                    .offset(x: 6, y: -6)
+            }
         }
     }
 
