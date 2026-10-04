@@ -36,6 +36,8 @@ struct PrinterStatusChip: View {
                 Circle().fill(dotColor).frame(width: 8, height: 8)
                 Text(label).font(.system(.caption, design: .monospaced))
             }
+            .fixedSize()
+            .padding(.horizontal, 8)
             .foregroundStyle(Palette.ink)
         }
         .buttonStyle(.plain)
