@@ -1,6 +1,6 @@
 # Fauxmemo
 
-Print photos and Phosphor icon sheets to a Phomemo T02 from iOS.
+Print photos, text labels, and icon sheets of Phosphor glyphs and emoji to a Phomemo T02 from iOS.
 
 Fork of [jeffrafter/phomemo](https://github.com/jeffrafter/phomemo), which builds on [vivier/phomemo-tools](https://github.com/vivier/phomemo-tools).
 
@@ -14,6 +14,8 @@ xcodegen
 open Fauxmemo.xcodeproj
 ```
 
+Rerun `xcodegen` after adding or removing source files, because the generated project lists each file.
+
 Image processing and the printer protocol live in `FauxmemoKit`, a plain Swift package with tests:
 
 ```sh
@@ -25,7 +27,7 @@ cd FauxmemoKit && swift test
 - `App/`: the app (home, photo print, icon sheet, text)
 - `Share/`: share extension for printing a photo from any app
 - `Shared/`: printer connection, imaging glue and views used by both
-- `FauxmemoKit/`: dithering, the T02 byte format and icon sheet layout
+- `FauxmemoKit/`: dithering, bitmap compositing, the T02 byte format, and icon sheet layout
 
 ## Troubleshooting
 
@@ -38,3 +40,5 @@ cd FauxmemoKit && swift test
 ## How printing works
 
 Everything ends up as a `Bitmap` 384 dots wide, which `PhomemoPrinter` encodes and sends. A new kind of print only needs to produce a bitmap.
+
+Photos and emoji are dithered to keep their shading. Text and Phosphor glyphs are thresholded so their edges stay sharp. A print that mixes them, such as a label with an emoji, renders each part separately and composites the bitmaps.
