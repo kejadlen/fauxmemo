@@ -1,12 +1,16 @@
 import FauxmemoKit
+import PhosphorSwift
 import SwiftUI
 
 struct TextPrintView: View {
     @State private var text = ""
     @State private var bitmap: Bitmap?
+    @State private var icon: PrintIcon?
+    @State private var pickingIcon = false
     @AppStorage("textFont") private var font: TextFont = .standard
     @AppStorage("textSize") private var size: TextSize = .medium
     @AppStorage("textBold") private var bold = true
+    @AppStorage("dither") private var dither: Dither = .atkinson
     @FocusState private var editing: Bool
 
     private struct RenderKey: Hashable {
@@ -14,7 +18,14 @@ struct TextPrintView: View {
         let font: TextFont
         let size: TextSize
         let bold: Bool
+        let icon: PrintIcon?
+        let dither: Dither
     }
+
+    /// Room between a leading icon and the text, in dots.
+    private static let iconGap = 12
+
+    private var glyphWeight: Ph.IconWeight { bold ? .bold : .regular }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -69,6 +80,14 @@ struct TextPrintView: View {
                     .accessibilityLabel("Bold")
                 }
 
+                HStack(spacing: 12) {
+                    iconControls
+                    if icon?.isEmoji == true {
+                        DitherPicker(selection: $dither)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 PrintButton(bitmap: bitmap)
             }
         }
@@ -86,20 +105,88 @@ struct TextPrintView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .task(id: RenderKey(text: text, font: font, size: size, bold: bold)) {
+        .sheet(isPresented: $pickingIcon) {
+            IconPickerSheet(weight: glyphWeight) { icon = $0 }
+        }
+        .task(id: RenderKey(text: text, font: font, size: size, bold: bold, icon: icon, dither: dither)) {
             bitmap = render()
+        }
+    }
+
+    @ViewBuilder
+    private var iconControls: some View {
+        Button {
+            pickingIcon = true
+        } label: {
+            switch icon {
+            case .glyph(let glyph):
+                glyph.weight(glyphWeight).frame(width: 20, height: 20)
+            case .emoji(let emoji):
+                Text(emoji)
+            case nil:
+                Label("Icon", systemImage: "plus")
+            }
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel(icon.map { "Icon: \($0.name)" } ?? "Add icon")
+
+        if icon != nil {
+            Button("Remove icon", systemImage: "xmark") { icon = nil }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.bordered)
         }
     }
 
     private func render() -> Bitmap? {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        let width = CGFloat(PhomemoEncoder.printWidth)
+        let printWidth = PhomemoEncoder.printWidth
+        let iconSide = min(Int(size.points) * 2, 128)
+        let textX = icon == nil ? 0 : iconSide + Self.iconGap
+        let textWidth = CGFloat(printWidth - textX)
         let content = Text(text)
             .font(.system(size: size.points, weight: bold ? .bold : .regular, design: font.design))
             .foregroundStyle(Color.black)
-            .frame(width: width, alignment: .leading)
+            .frame(width: textWidth, alignment: .leading)
             .background(Color.white)
-        return GrayImage(rendering: content, width: width).map { Dither.threshold.apply(to: $0) }
+        guard let gray = GrayImage(rendering: content, width: textWidth) else { return nil }
+        let textBitmap = Dither.threshold.apply(to: gray)
+        guard let icon else { return textBitmap }
+
+        // Center both on the taller one, like a label.
+        let height = max(iconSide, textBitmap.height)
+        var label = Bitmap(width: printWidth, height: height)
+        if let iconBitmap = icon.bitmap(size: iconSide, weight: glyphWeight, dither: dither) {
+            label.draw(iconBitmap, x: 0, y: (height - iconSide) / 2)
+        }
+        label.draw(textBitmap, x: textX, y: (height - textBitmap.height) / 2)
+        return label
+    }
+}
+
+private struct IconPickerSheet: View {
+    let weight: Ph.IconWeight
+    let pick: (PrintIcon) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var body: some View {
+        NavigationStack {
+            IconPicker(query: query, weight: weight) { icon in
+                pick(icon)
+                dismiss()
+            }
+            .padding(.horizontal, 20)
+            .background(Palette.ground)
+            .navigationTitle("Icon")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search icons or type an emoji")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
     }
 }
 
