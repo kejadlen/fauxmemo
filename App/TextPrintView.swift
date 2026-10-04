@@ -99,11 +99,7 @@ struct TextPrintView: View {
             .foregroundStyle(Color.black)
             .frame(width: width, alignment: .leading)
             .background(Color.white)
-        let renderer = ImageRenderer(content: content)
-        renderer.proposedSize = ProposedViewSize(width: width, height: nil)
-        renderer.scale = 1
-        guard let cgImage = renderer.cgImage, let gray = GrayImage(cgImage: cgImage) else { return nil }
-        return Dither.threshold.apply(to: gray)
+        return GrayImage(rendering: content, width: width).map { Dither.threshold.apply(to: $0) }
     }
 }
 

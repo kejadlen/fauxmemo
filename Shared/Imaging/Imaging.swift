@@ -1,5 +1,6 @@
 import FauxmemoKit
 import ImageIO
+import SwiftUI
 import UIKit
 
 extension UIImage {
@@ -52,6 +53,18 @@ extension GrayImage {
             }
             UIGraphicsPopContext()
         }
+    }
+
+    /// Renders a view at one pixel per point, wrapping at `width` if given.
+    @MainActor
+    init?(rendering view: some View, width: CGFloat? = nil) {
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        if let width {
+            renderer.proposedSize = ProposedViewSize(width: width, height: nil)
+        }
+        guard let cgImage = renderer.cgImage else { return nil }
+        self.init(cgImage: cgImage)
     }
 
     init?(cgImage: CGImage) {

@@ -3,11 +3,12 @@ import PhosphorSwift
 import SwiftUI
 
 struct IconSheetView: View {
-    @State private var selected: [Ph] = []
+    @State private var selected: [PrintIcon] = []
     @State private var query = ""
     @State private var bitmap: Bitmap?
     @AppStorage("iconWeight") private var weight: Ph.IconWeight = .bold
     @AppStorage("iconsPerRow") private var perRow = 4
+    @AppStorage("dither") private var dither: Dither = .atkinson
 
     /// Hairline weights break up on the print head, and duotone has no meaning in 1-bit.
     private static let weights: [Ph.IconWeight] = [.regular, .bold, .fill]
@@ -16,16 +17,11 @@ struct IconSheetView: View {
         IconSheetLayout(count: selected.count, perRow: perRow)
     }
 
-    private var results: [Ph] {
-        let search = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !search.isEmpty else { return Ph.allCases }
-        return Ph.allCases.filter { $0.rawValue.replacingOccurrences(of: "-", with: " ").contains(search) }
-    }
-
     private struct RenderKey: Hashable {
-        let icons: [Ph]
+        let icons: [PrintIcon]
         let weight: Ph.IconWeight
         let perRow: Int
+        let dither: Dither
     }
 
     var body: some View {
@@ -52,15 +48,8 @@ struct IconSheetView: View {
                 .fixedSize()
             }
 
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
-                    ForEach(results) { icon in
-                        IconButton(icon: icon, weight: weight, count: counts[icon, default: 0]) {
-                            selected.append(icon)
-                        }
-                    }
-                }
-                .padding(.vertical, 6)
+            IconPicker(query: query, weight: weight, counts: counts) { icon in
+                selected.append(icon)
             }
             .frame(maxHeight: .infinity)
 
@@ -72,6 +61,10 @@ struct IconSheetView: View {
                 .frame(maxHeight: 320)
             }
 
+            if selected.contains(where: \.isEmoji) {
+                DitherPicker(selection: $dither)
+            }
+
             PrintButton(bitmap: selected.isEmpty ? nil : bitmap)
         }
         .padding(.horizontal, 20)
@@ -79,13 +72,13 @@ struct IconSheetView: View {
         .background(Palette.ground)
         .navigationTitle("Icon sheet")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search icons")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search icons or type an emoji")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 PrinterStatusChip()
             }
         }
-        .task(id: RenderKey(icons: selected, weight: weight, perRow: perRow)) {
+        .task(id: RenderKey(icons: selected, weight: weight, perRow: perRow, dither: dither)) {
             bitmap = render()
         }
     }
@@ -97,70 +90,33 @@ struct IconSheetView: View {
     }
 
     private func render() -> Bitmap? {
-        guard !selected.isEmpty else { return nil }
-        let renderer = ImageRenderer(content: IconSheet(icons: selected, weight: weight, layout: layout))
-        renderer.scale = 1
-        guard let cgImage = renderer.cgImage, let gray = GrayImage(cgImage: cgImage) else { return nil }
-        return Dither.threshold.apply(to: gray)
-    }
-}
-
-private struct IconButton: View {
-    let icon: Ph
-    let weight: Ph.IconWeight
-    let count: Int
-    let add: () -> Void
-
-    var body: some View {
-        Button(action: add) {
-            icon.weight(weight)
-                .frame(width: 24, height: 24)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .foregroundStyle(count > 0 ? Palette.surface : Palette.ink)
-                .background(count > 0 ? Palette.ink : Palette.surface, in: .rect(cornerRadius: 12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(count > 0 ? Palette.ink : Palette.line)
-                }
-                .overlay(alignment: .topTrailing) {
-                    if count > 1 {
-                        Text("\(count)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .frame(minWidth: 20, minHeight: 20)
-                            .background(Palette.accent, in: .capsule)
-                            .offset(x: 6, y: -6)
-                    }
-                }
+        guard !selected.isEmpty, let grid = GrayImage(rendering: SheetGrid(layout: layout)) else { return nil }
+        var sheet = Dither.threshold.apply(to: grid)
+        var rendered: [PrintIcon: Bitmap] = [:]
+        for (index, icon) in selected.enumerated() {
+            let cell = layout.cell(index)
+            let inset = Int((Double(cell.size) * 0.18).rounded())
+            guard let bitmap = rendered[icon] ?? icon.bitmap(size: cell.size - 2 * inset, weight: weight, dither: dither)
+            else { continue }
+            rendered[icon] = bitmap
+            sheet.draw(bitmap, x: cell.x + inset, y: cell.y + inset)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(icon.rawValue.replacingOccurrences(of: "-", with: " "))
-        .accessibilityValue(count > 0 ? "\(count) on sheet" : "")
+        return sheet
     }
 }
 
-/// The printed sheet, one dot per point. Rendered with `ImageRenderer`.
-private struct IconSheet: View {
-    let icons: [Ph]
-    let weight: Ph.IconWeight
+/// The sheet's dashed cut lines, one dot per point. Icons are drawn in afterwards.
+private struct SheetGrid: View {
     let layout: IconSheetLayout
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.white
-            ForEach(Array(icons.enumerated()), id: \.offset) { index, icon in
-                let cell = layout.cell(index)
-                let size = CGFloat(cell.size)
-                ZStack {
-                    Rectangle()
-                        .strokeBorder(Color.black, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                    icon.weight(weight)
-                        .foregroundStyle(Color.black)
-                        .padding(size * 0.18)
-                }
-                .frame(width: size, height: size)
-                .offset(x: CGFloat(cell.x), y: CGFloat(cell.y))
+            ForEach(Array(layout.cells.enumerated()), id: \.offset) { _, cell in
+                Rectangle()
+                    .strokeBorder(Color.black, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .frame(width: CGFloat(cell.size), height: CGFloat(cell.size))
+                    .offset(x: CGFloat(cell.x), y: CGFloat(cell.y))
             }
         }
         .frame(width: CGFloat(layout.width), height: CGFloat(layout.height))
@@ -170,7 +126,7 @@ private struct IconSheet: View {
 /// The rendered sheet; tap an icon to take it off.
 private struct SheetPreview: View {
     let bitmap: Bitmap?
-    let icons: [Ph]
+    let icons: [PrintIcon]
     let layout: IconSheetLayout
     let remove: (Int) -> Void
 
@@ -193,7 +149,7 @@ private struct SheetPreview: View {
                     }
                     .frame(width: CGFloat(cell.size) * scale, height: CGFloat(cell.size) * scale)
                     .offset(x: CGFloat(cell.x) * scale, y: CGFloat(cell.y) * scale)
-                    .accessibilityLabel("Remove \(icon.rawValue.replacingOccurrences(of: "-", with: " "))")
+                    .accessibilityLabel("Remove \(icon.name)")
                 }
             }
             .frame(width: PaperPreview.displayWidth, height: CGFloat(layout.height) * scale, alignment: .topLeading)
