@@ -22,7 +22,7 @@ cd FauxmemoKit && swift test
 
 ## Layout
 
-- `App/`: the app (home, photo print, icon sheet)
+- `App/`: the app (home, photo print, icon sheet, text)
 - `Share/`: share extension for printing a photo from any app
 - `Shared/`: printer connection, imaging glue and views used by both
 - `FauxmemoKit/`: dithering, the T02 byte format and icon sheet layout
@@ -37,4 +37,4 @@ cd FauxmemoKit && swift test
 
 ## How printing works
 
-Everything ends up as a `Bitmap` 384 dots wide, which `PhomemoPrinter` encodes and sends. A new kind of print, such as text, only needs to produce a bitmap.
+Everything ends up as a `Bitmap` 384 dots wide, which `PhomemoPrinter` encodes and sends. A new kind of print only needs to produce a bitmap.

@@ -18,10 +18,17 @@ struct HomeView: View {
                             Tile(title: "Photos", icon: Ph.image.regular)
                         }
                     }
-                    NavigationLink {
-                        IconSheetView()
-                    } label: {
-                        Tile(title: "Icon sheet", icon: Ph.shapes.regular)
+                    HStack(spacing: 12) {
+                        NavigationLink {
+                            IconSheetView()
+                        } label: {
+                            Tile(title: "Icon sheet", icon: Ph.shapes.regular)
+                        }
+                        NavigationLink {
+                            TextPrintView()
+                        } label: {
+                            Tile(title: "Text", icon: Ph.textAa.regular)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
