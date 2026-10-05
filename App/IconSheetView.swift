@@ -47,27 +47,30 @@ struct IconSheetView: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
+            .padding(.horizontal, 20)
 
             IconPicker(query: query, weight: weight, counts: counts) { icon in
                 selected.append(icon)
             }
             .frame(maxHeight: .infinity)
 
-            if !selected.isEmpty {
-                ViewThatFits(in: .vertical) {
-                    sheetPreview
-                    ScrollView { sheetPreview }
+            VStack(spacing: 14) {
+                if !selected.isEmpty {
+                    ViewThatFits(in: .vertical) {
+                        sheetPreview
+                        ScrollView { sheetPreview }
+                    }
+                    .frame(maxHeight: 320)
                 }
-                .frame(maxHeight: 320)
-            }
 
-            if selected.contains(where: \.isEmoji) {
-                DitherPicker(selection: $dither)
-            }
+                if selected.contains(where: \.isEmoji) {
+                    DitherPicker(selection: $dither)
+                }
 
-            PrintButton(bitmap: selected.isEmpty ? nil : bitmap)
+                PrintButton(bitmap: selected.isEmpty ? nil : bitmap)
+            }
+            .padding(.horizontal, 20)
         }
-        .padding(.horizontal, 20)
         .padding(.bottom, 16)
         .background(Palette.ground)
         .navigationTitle("Icon sheet")

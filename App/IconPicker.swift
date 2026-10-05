@@ -28,6 +28,8 @@ struct IconPicker: View {
             }
             .padding(.vertical, 6)
         }
+        // Inset the grid, not the scroll view, so the indicator stays on the screen edge.
+        .contentMargins(.horizontal, 20, for: .scrollContent)
     }
 }
 

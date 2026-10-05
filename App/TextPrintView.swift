@@ -189,7 +189,6 @@ private struct IconPickerSheet: View {
                 pick(icon)
                 dismiss()
             }
-            .padding(.horizontal, 20)
             .background(Palette.ground)
             .navigationTitle("Icon")
             .navigationBarTitleDisplayMode(.inline)
